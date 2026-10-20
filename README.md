@@ -10,7 +10,7 @@
 
 它不试图替你管理一切。它只保证一件事：**捕获足够轻，判断有地方落，输出有路径可走。**
 
-**English** — A Chinese-first Obsidian knowledge-base starter that prioritizes capture over governance: 8 folders, 7 templates, zero community plugins, a standard-library audit with 53 tests, and an `AGENTS.md` contract for AI assistants.
+**English** — A Chinese-first Obsidian knowledge-base starter that prioritizes capture over governance: 8 folders, 7 templates, zero community plugins, a standard-library audit with 82 tests, and an `AGENTS.md` contract for AI assistants.
 
 ![Obsidian 知识库 Starter](07%20资料库/A%20附件/banner.svg)
 
@@ -35,6 +35,15 @@
 - **审计是证伪工具，不是评分。** FAIL 修结构，WARN 留给人判断；它不检查内容质量和事实准确性。
 - **AI 有协作契约。** `AGENTS.md` 明确 AI 可以起草和整理，但不能代填 `endorsed`、代勾关键结果、批量改状态。
 - **零社区插件。** 工作台用 Obsidian 原生嵌入搜索；审计只用 Python 标准库。
+
+## 和常见方案的区别
+
+| 方案 | 强项 | 这套的选择 |
+|---|---|---|
+| PARA | 按领域 / 项目组织行动 | 顶层按流程阶段组织，主题交给标签和双链 |
+| Zettelkasten | 原子卡与链接网络 | 保留常青卡，但前面有捕获、消化、判断三层 |
+| Johnny.Decimal | 编号索引与稳定地址 | 8 个固定阶段，不扩展编号树 |
+| Dataview 模板 | 查询 / 自动化能力强 | 零社区插件，原生查询 + 结构审计 |
 
 ## 适合谁
 
@@ -114,6 +123,10 @@ python3 tools/kb_audit.py --strict
 # 机器可读
 python3 tools/kb_audit.py --json
 
+# 大量 WARN 时看汇总 / 限制明细
+python3 tools/kb_audit.py --summary
+python3 tools/kb_audit.py --max-issues 30
+
 # 新建笔记
 python3 tools/kb_new.py reading --title "某篇文章" --source-type 文章
 python3 tools/kb_new.py evergreen --title "某个判断" --form 判断 --area 工作
@@ -122,14 +135,15 @@ python3 tools/kb_new.py daily
 # 清理示例（默认 dry-run；--apply 才写入）
 python3 tools/kb_clean_demo.py
 python3 tools/kb_clean_demo.py --apply
+python3 tools/kb_clean_demo.py --apply --force   # 连缺少示例标签的文件也删，仍先备份
 
 # 单元 + 集成测试
 python3 -m unittest discover -s tools/tests -v
 ```
 
-`kb_new.py` 在写入前检查全库重名，`--force` 覆盖前会备份到 `.backup/`。`kb_clean_demo.py` 删除示例文件、清理索引与 README 示例段，并先备份。
+`kb_new.py` 在写入前检查全库重名、目标目录是否允许该 type，并拒绝 symlink 越界；`--force` 覆盖前会备份到 `.backup/`。`kb_clean_demo.py` 只删除清单里且仍带示例标记的文件，只移除空目录，写入前备份；缺失标记的文件默认跳过。
 
-审计检查六类东西：链接、frontmatter、可达性、消化链路、陈旧度、占位与空笔记。它**不**检查内容质量、事实准确性、外部链接是否存活、附件是否存在。边界见 [`00 索引/审计说明.md`](00%20索引/审计说明.md)。
+审计检查六类东西：链接、frontmatter、可达性、消化链路、陈旧度、占位与空笔记。它还会检查子目录与 `source_type` / `area` / `form` 是否一致、项目路径/归档/复盘、收件箱账龄，以及别名/大小写/Setext 等链接边界。它**不**检查内容质量、事实准确性、外部链接是否存活、附件是否存在。边界见 [`00 索引/审计说明.md`](00%20索引/审计说明.md)。
 
 ## 五个设计原则
 
@@ -156,9 +170,11 @@ python3 -m unittest discover -s tools/tests -v
 读法见 [`00 索引/示例导览.md`](00%20索引/示例导览.md)。删除推荐用脚本：
 
 ```bash
-python3 tools/kb_clean_demo.py            # 预览
+python3 tools/kb_clean_demo.py            # 预览：列出文件、索引行、跳过项
 python3 tools/kb_clean_demo.py --apply    # 删除并清理索引，先自动备份
 ```
+
+默认会跳过缺少 `示例` 标签/日记标记的文件；确认要删再加 `--force`。项目目录只在删空后移除，不会连带删除你放进去的个人文件。
 
 ## 用 AI 协作
 
@@ -179,6 +195,7 @@ AI 不可以：代填 `endorsed`、代勾关键结果、批量改 `status`、伪
 ## 自定义 / 迁移
 
 - **改词表 / 路径**：`tools/kb_config.json`，同时更新 [`00 索引/受控词表.md`](00%20索引/受控词表.md)。
+- **改审计阈值 / 布局**：`tools/kb_config.json` 的 `project_stale_days`、`inbox_stale_days`、`expected_subdirs`。
 - **改模板**：`07 资料库/D 模板/`，同时更新模板库、`.obsidian/templates.json` 与配置。
 - **改工作台查询**：`00 索引/知识库主页.md`，保持 `[status:值]` 的方括号语法。
 - **改目录名**：不要只改文件夹。配置、查询、索引、文档、`.obsidian/daily-notes.json`、`.obsidian/templates.json` 与 `tools/kb_new.py` 的目录映射都要一起改。
@@ -215,7 +232,7 @@ v0.1 是一个可用的最小闭环，按 issue 和真实痛点做 best-effort �
 
 ## 版本与许可
 
-当前为 **v0.1.0**。变更见 [CHANGELOG.md](CHANGELOG.md)。
+当前为 **v0.1.1**。变更见 [CHANGELOG.md](CHANGELOG.md)。
 
 文本、结构、脚本与示例以 [MIT](LICENSE) 授权。
 
@@ -237,3 +254,6 @@ v0.1 是一个可用的最小闭环，按 issue 和真实痛点做 best-effort �
 - [`00 索引/升级路线.md`](00%20索引/升级路线.md)：以后可以加什么
 - [`07 资料库/D 模板/模板库.md`](07%20资料库/D%20模板/模板库.md)：7 个模板的用途
 - [AGENTS.md](AGENTS.md)：给 AI 助手的协作契约
+- [TROUBLESHOOTING.md](TROUBLESHOOTING.md)：常见报错、查询块、恢复备份
+- [MIGRATION.md](MIGRATION.md)：把已有库迁进来
+- [RELEASING.md](RELEASING.md)：发布检查清单

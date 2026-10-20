@@ -199,6 +199,13 @@ class LinkTests(VaultTestCase):
         report = self.audit()
         self.assert_code(report, "A6")
 
+    def test_case_only_duplicate_basename_warns(self):
+        self.home(["02 阅读笔记/B 文章/Foo"])
+        self.note("02 阅读笔记/B 文章/Foo.md", "reading", "待阅读", "文章")
+        self.note("03 主题笔记/A 工作/foo.md", "topic", "待提炼", "阅读笔记")
+        report = self.audit()
+        self.assert_code(report, "A6")
+
     def test_embed_missing_note(self):
         self.home(body="![[不存在]]")
         report = self.audit()
@@ -220,6 +227,50 @@ class LinkTests(VaultTestCase):
         self.note("02 阅读笔记/B 文章/笔记.md", "reading", "待阅读", "文章")
         report = self.audit()
         self.assert_code(report, "A4")
+
+    def test_setext_heading_anchor(self):
+        self.home(["笔记#Setext 标题"])
+        self.note(
+            "02 阅读笔记/B 文章/笔记.md",
+            "reading",
+            "待阅读",
+            "文章",
+            body="Setext 标题\n==========\n\n正文内容。\n\n补充。\n",
+        )
+        report = self.audit()
+        self.assertFalse(report.by_code("A4"), report.to_dict())
+
+    def test_heading_in_html_comment_is_ignored(self):
+        self.home(["笔记#Hidden"])
+        self.note(
+            "02 阅读笔记/B 文章/笔记.md",
+            "reading",
+            "待阅读",
+            "文章",
+            body="<!--\n## Hidden\n-->\n\n正文内容。\n\n补充。\n",
+        )
+        report = self.audit()
+        self.assert_code(report, "A4")
+
+    def test_case_insensitive_link_warns_a8(self):
+        self.home(["case"])
+        self.note("02 阅读笔记/B 文章/Case.md", "reading", "待阅读", "文章")
+        report = self.audit()
+        self.assert_code(report, "A8")
+        self.assertFalse(report.by_code("A1"), report.to_dict())
+
+    def test_alias_vs_basename_collision_warns_b15(self):
+        self.home(["Foo"])
+        self.note("02 阅读笔记/B 文章/Foo.md", "reading", "待阅读", "文章")
+        self.note(
+            "03 主题笔记/A 工作/别名.md",
+            "topic",
+            "待提炼",
+            "阅读笔记",
+            aliases=["Foo"],
+        )
+        report = self.audit()
+        self.assert_code(report, "B15")
 
 
 class FrontmatterTests(VaultTestCase):
@@ -328,6 +379,69 @@ class FrontmatterTests(VaultTestCase):
         report = self.audit()
         self.assertFalse(report.by_code("B1"), report.to_dict())
 
+    def test_layout_mismatch_warns(self):
+        self.home(["阅读", "主题", "卡片"])
+        self.note(
+            "02 阅读笔记/B 文章/阅读.md",
+            "reading",
+            "待阅读",
+            "书籍",
+        )
+        self.note(
+            "03 主题笔记/A 工作/主题.md",
+            "topic",
+            "待提炼",
+            "阅读笔记",
+            extra="area: 学习",
+        )
+        self.note(
+            "04 常青笔记/E 判断/卡片.md",
+            "evergreen",
+            "草稿",
+            "阅读笔记",
+            extra="form: 方法",
+        )
+        report = self.audit()
+        self.assertEqual(len(report.by_code("B11")), 3, report.to_dict())
+
+    def test_evergreen_missing_form_warns(self):
+        self.home(["卡片"])
+        self.note(
+            "04 常青笔记/E 判断/卡片.md",
+            "evergreen",
+            "草稿",
+            "阅读笔记",
+        )
+        report = self.audit()
+        self.assert_code(report, "B12")
+
+    def test_project_path_and_doc_path_warn(self):
+        self.home(["松散项目", "other"])
+        self.note(
+            "05 项目/松散项目.md",
+            "project",
+            "待启动",
+            "原创随笔",
+        )
+        self.note(
+            "05 项目/2026/2026-x/other.md",
+            "project_doc",
+            "草稿",
+        )
+        report = self.audit()
+        self.assertEqual(len(report.by_code("B13")), 2, report.to_dict())
+
+    def test_archived_project_outside_archive_warns(self):
+        self.home(["已归档项目-项目主页"])
+        self.note(
+            "05 项目/2026/2026-已归档项目/2026-已归档项目-项目主页.md",
+            "project",
+            "已归档",
+            "原创随笔",
+        )
+        report = self.audit()
+        self.assert_code(report, "B14")
+
 
 class ReachabilityAndQualityTests(VaultTestCase):
     def test_unreachable_note(self):
@@ -402,10 +516,151 @@ class ReachabilityAndQualityTests(VaultTestCase):
         report = self.audit()
         self.assert_code(report, "E1")
 
+    def test_completed_project_without_review_warns(self):
+        self.home(["2026-项目-项目主页"])
+        self.note(
+            "05 项目/2026/2026-项目/2026-项目-项目主页.md",
+            "project",
+            "已完成",
+            "原创随笔",
+        )
+        report = self.audit()
+        self.assert_code(report, "C3")
+
+    def test_completed_project_with_review_does_not_warn(self):
+        self.home(["2026-项目-项目主页", "复盘"])
+        self.note(
+            "05 项目/2026/2026-项目/2026-项目-项目主页.md",
+            "project",
+            "已完成",
+            "原创随笔",
+            body="正文内容。\n\n## 复盘\n\n- [[复盘]]\n\n补充。\n",
+        )
+        self.note(
+            "03 主题笔记/A 工作/复盘.md",
+            "review",
+            "已完成",
+        )
+        report = self.audit()
+        self.assertFalse(report.by_code("C3"), report.to_dict())
+
+    def test_active_project_stale_warns_e3(self):
+        self.home(["2026-项目-项目主页"])
+        self.note(
+            "05 项目/2026/2026-项目/2026-项目-项目主页.md",
+            "project",
+            "进行中",
+            "原创随笔",
+            updated="2020-01-01",
+        )
+        report = self.audit()
+        self.assert_code(report, "E3")
+
+    def test_active_project_with_demo_tag_is_exempt(self):
+        self.home(["2026-项目-项目主页"])
+        self.note(
+            "05 项目/2026/2026-项目/2026-项目-项目主页.md",
+            "project",
+            "进行中",
+            "原创随笔",
+            tags=["示例"],
+            updated="2020-01-01",
+        )
+        report = self.audit()
+        self.assertFalse(report.by_code("E3"), report.to_dict())
+
+    def test_inbox_aging_warns_e4(self):
+        self.home([])
+        self.write(
+            "01 收件箱/A 临时想法/2020-01-01.md",
+            "# 2020-01-01\n\n- 一条旧捕获。\n",
+        )
+        report = self.audit()
+        self.assert_code(report, "E4")
+
+    def test_inbox_demo_marker_is_exempt(self):
+        self.home([])
+        self.write(
+            "01 收件箱/A 临时想法/2020-01-01.md",
+            "<!-- 示例内容，可删除 -->\n# 2020-01-01\n\n- 示例捕获。\n",
+        )
+        report = self.audit()
+        self.assertFalse(report.by_code("E4"), report.to_dict())
+
+    def test_summary_output_groups_by_code(self):
+        self.home(["笔记"])
+        self.note("02 阅读笔记/B 文章/笔记.md", "reading", "待阅读", "文章")
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            code = kb_audit.main(["--root", str(self.root), "--summary"])
+        output = stdout.getvalue()
+        self.assertEqual(code, 0)
+        self.assertIn("[D1] 1 条", output)
+
 
 class NewNoteTests(unittest.TestCase):
     def test_sanitize_filename(self):
         self.assertEqual(kb_new.sanitize_filename("a/b|c"), "a-b-c")
+
+    def test_sanitize_md_suffix_and_control_chars(self):
+        self.assertEqual(kb_new.sanitize_filename("foo.md"), "foo")
+        self.assertEqual(kb_new.sanitize_filename("foo.md.md"), "foo")
+        self.assertEqual(kb_new.sanitize_filename("a\x00b"), "a-b")
+        with self.assertRaises(kb_new.NewNoteError):
+            kb_new.sanitize_filename(".md")
+
+    def test_sanitize_windows_reserved_names(self):
+        for title in ("CON", "con", "PRN", "LPT1", "COM9"):
+            with self.assertRaises(kb_new.NewNoteError):
+                kb_new.sanitize_filename(title)
+
+    def test_validate_target_dir(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            config = copy.deepcopy(BASE_CONFIG)
+            valid = [
+                ("02 阅读笔记/B 文章/x.md", "reading"),
+                ("03 主题笔记/A 工作/x.md", "topic"),
+                ("04 常青笔记/E 判断/x.md", "evergreen"),
+                ("05 项目/2026/2026-x/2026-x-项目主页.md", "project"),
+                ("01 收件箱/A 临时想法/2026-10-12.md", "daily"),
+            ]
+            for rel, kind in valid:
+                kb_new.validate_target_dir(root, config, Path(rel), kind)
+
+            invalid = [
+                ("99 归档/x.md", "reading"),
+                ("00 索引/x.md", "reading"),
+                ("07 资料库/x.md", "reading"),
+                (".obsidian/x.md", "reading"),
+                ("01 收件箱/D/x.md", "reading"),
+                ("05 项目/2026/custom/2026-x-项目主页.md", "project"),
+                ("05 项目/2026/2026-x/项目主页.md", "project"),
+            ]
+            for rel, kind in invalid:
+                with self.assertRaises(kb_new.NewNoteError):
+                    kb_new.validate_target_dir(root, config, Path(rel), kind)
+
+    def test_validate_target_dir_rejects_symlink_escape(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            root = base / "vault"
+            outside = base / "outside"
+            (root / "02 阅读笔记/B 文章").mkdir(parents=True)
+            outside.mkdir()
+            try:
+                (root / "02 阅读笔记/B 文章/evil").symlink_to(
+                    outside, target_is_directory=True
+                )
+            except OSError as error:
+                self.skipTest(f"symlink not available: {error}")
+            with self.assertRaises(kb_new.NewNoteError):
+                kb_new.validate_target_dir(
+                    root,
+                    copy.deepcopy(BASE_CONFIG),
+                    Path("02 阅读笔记/B 文章/evil/x.md"),
+                    "reading",
+                )
 
     def test_destination_project_avoids_double_year(self):
         rel, title = kb_new.destination(
@@ -566,6 +821,24 @@ class NewNoteTests(unittest.TestCase):
             )
             self.assertEqual(conflicts, ["02 阅读笔记/B 文章/新名字.md"])
 
+    def test_find_case_only_conflicts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = root / "02 阅读笔记/B 文章/Foo.md"
+            path.parent.mkdir(parents=True)
+            path.write_text(
+                "---\ntype: reading\nstatus: 待阅读\nsource_type: 文章\n"
+                "tags: []\ncreated: 2026-10-01\nupdated: 2026-10-01\n---\n\n"
+                "# Foo\n\n正文\n",
+                encoding="utf-8",
+            )
+            conflicts = kb_new.find_name_conflicts(
+                root,
+                copy.deepcopy(BASE_CONFIG),
+                Path("03 主题笔记/A 工作/foo.md"),
+            )
+            self.assertEqual(conflicts, ["02 阅读笔记/B 文章/Foo.md"])
+
     def test_backup_existing(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -628,6 +901,33 @@ class NewNoteTests(unittest.TestCase):
             self.assertEqual(code, 0, stderr.getvalue())
             backups = list((root / ".backup").glob("kb_new-*/**/2026-10-12.md"))
             self.assertTrue(backups, list((root / ".backup").rglob("*")))
+
+    def test_cli_rejects_bad_dir(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "vault"
+            shutil.copytree(
+                VAULT,
+                root,
+                ignore=shutil.ignore_patterns(
+                    ".git", ".obsidian", "__pycache__", ".backup"
+                ),
+            )
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                code = kb_new.main(
+                    [
+                        "reading",
+                        "--title",
+                        "不该创建",
+                        "--dir",
+                        "99 归档",
+                        "--root",
+                        str(root),
+                    ]
+                )
+            self.assertEqual(code, 2)
+            self.assertIn("99 归档", stderr.getvalue())
+            self.assertFalse((root / "99 归档/不该创建.md").exists())
 
 
 if __name__ == "__main__":

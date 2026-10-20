@@ -112,7 +112,10 @@
     "CONTRIBUTING.md",
     "SECURITY.md",
     "CODE_OF_CONDUCT.md",
-    "CLAUDE.md"
+    "CLAUDE.md",
+    "TROUBLESHOOTING.md",
+    "MIGRATION.md",
+    "RELEASING.md"
   ],
   "link_exempt_prefixes": [
     "07 资料库/D 模板",
@@ -223,6 +226,10 @@
     "00 索引": [
       "index"
     ],
+    "01 收件箱": [
+      "inbox",
+      "index"
+    ],
     "02 阅读笔记": [
       "reading",
       "index"
@@ -249,6 +256,47 @@
       "template"
     ]
   },
+  "expected_subdirs": {
+    "02 阅读笔记": {
+      "field": "source_type",
+      "map": {
+        "书籍": "A 书籍",
+        "文章": "B 文章",
+        "课程": "C 课程",
+        "播客": "D 其他",
+        "视频": "D 其他",
+        "论文": "D 其他",
+        "网页": "D 其他",
+        "原文精读": "B 文章",
+        "阅读笔记": "B 文章"
+      }
+    },
+    "03 主题笔记": {
+      "field": "area",
+      "map": {
+        "工作": "A 工作",
+        "学习": "B 学习",
+        "生活": "C 生活"
+      }
+    },
+    "04 常青笔记": {
+      "field": "form",
+      "map": {
+        "概念": "A 概念",
+        "原则": "B 原则",
+        "模型": "C 模型",
+        "方法": "D 方法",
+        "判断": "E 判断",
+        "金句": "F 金句"
+      }
+    }
+  },
+  "project_stale_days": 30,
+  "inbox_stale_days": 14,
+  "inbox_daily_dir": "01 收件箱/A 临时想法",
+  "demo_marker": "示例内容",
+  "require_evergreen_form": true,
+  "require_project_review_on_complete": true,
   "banned_tags": [
     "收件箱",
     "阅读笔记",

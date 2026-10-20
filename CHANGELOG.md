@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.1.1] - 2026-10-20
+
+### Safety
+
+- 示例清理改为文件级清单，不再对整个项目目录 `rmtree`。
+- 删除前校验 `示例` 标签 / 日记标记；缺失时跳过，`--force` 才强删。
+- 只移除空目录；项目目录里的个人文件会保留。
+- 写入前备份到 `.backup/demo-clean-*`；dry-run 打印具体文件和索引行。
+
+### Added
+
+- 审计新增 A8（大小写）、B11（子目录布局）、B12（evergreen 缺 form）、B13（项目路径）、B14（归档位置）、B15（别名/basename 冲突）、C3（已完成无复盘）、E3（项目主页 30 天未更新）、E4（收件箱 14 天未处理）。
+- `--summary` / `--max-issues`，大库不再刷屏；`--json` 保留全量。
+- `TROUBLESHOOTING.md`、`MIGRATION.md`、`RELEASING.md`。
+- 本地 Markdown 链接测试 + demo manifest 覆盖测试。
+
+### Changed
+
+- `kb_new.py` 校验 `--dir` 是否允许目标 type，拒绝 `.obsidian` / `tools` / `99 归档` / 错误顶层目录。
+- 全库重名检查与 A6 也覆盖仅大小写不同的文件名。
+- 标题清洗去掉重复 `.md` 后缀、控制字符，拒绝 Windows 保留名；写入前拒绝 symlink 越界。
+- 移除没有对应模板的 `inbox` kind；D 待整理按 7 天路径手工展开。
+- 标题解析支持 Setext，提取前剥离 HTML 注释；大小写链接给 A8 WARN 而不是断链。
+- 测试 53 → 82。
+
 ## [0.1.0] - 2026-10-20
 
 首个可用的最小闭环。

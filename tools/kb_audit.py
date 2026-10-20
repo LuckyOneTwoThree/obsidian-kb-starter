@@ -150,12 +150,24 @@ def normalize_heading(value: str) -> str:
 
 def extract_headings(body: str) -> List[str]:
     headings: List[str] = []
-    for line in strip_fenced(body).splitlines():
+    lines = strip_fenced(strip_comments(body)).splitlines()
+    for index, line in enumerate(lines):
         match = HEADING_RE.match(line.lstrip())
         if match:
             heading = re.sub(r"[ \t]+#+[ \t]*$", "", match.group(2)).strip()
             if heading:
                 headings.append(heading)
+            continue
+        stripped = line.strip()
+        if not stripped or stripped.startswith(
+            ("#", "-", "*", "+", ">", "|", "`", "~", "<", "[")
+        ):
+            continue
+        if index + 1 >= len(lines):
+            continue
+        underline = lines[index + 1].strip()
+        if re.fullmatch(r"=+", underline) or re.fullmatch(r"-+", underline):
+            headings.append(stripped)
     return headings
 
 
@@ -313,8 +325,11 @@ class Vault:
         self.config = config
         self.files: Dict[str, FileInfo] = {}
         self.path_index: Dict[str, str] = {}
+        self.path_casefold_index: Dict[str, List[str]] = {}
         self.basename_index: Dict[str, List[str]] = {}
+        self.basename_casefold_index: Dict[str, List[str]] = {}
         self.alias_index: Dict[str, List[str]] = {}
+        self.alias_only_index: Dict[str, List[str]] = {}
         self.read_errors: List[Tuple[str, str]] = []
 
         self.skip_dirs = set(config.get("skip_dirs", []))
@@ -359,11 +374,16 @@ class Vault:
                     heading_norms={normalize_heading(h) for h in headings},
                 )
                 self.files[rel] = info
-                self.path_index[rel[:-3]] = rel
+                key = rel[:-3]
+                self.path_index[key] = rel
+                self.path_casefold_index.setdefault(key.casefold(), []).append(rel)
 
         for rel in self.files:
             basename = posixpath.basename(rel[:-3])
             self.basename_index.setdefault(basename, []).append(rel)
+            self.basename_casefold_index.setdefault(
+                basename.casefold(), []
+            ).append(rel)
 
         for rel, info in self.files.items():
             aliases = info.fm.get("aliases", [])
@@ -372,7 +392,9 @@ class Vault:
             if isinstance(aliases, list):
                 for alias in aliases:
                     if isinstance(alias, str) and alias.strip():
-                        self.alias_index.setdefault(alias.strip(), []).append(rel)
+                        name = alias.strip()
+                        self.alias_index.setdefault(name, []).append(rel)
+                        self.alias_only_index.setdefault(name, []).append(rel)
             name_key = posixpath.basename(rel[:-3])
             self.alias_index.setdefault(name_key, []).append(rel)
 
@@ -399,6 +421,12 @@ class Vault:
         if candidate in self.path_index:
             return self.path_index[candidate], "path"
 
+        case_hits = self.path_casefold_index.get(raw.casefold(), [])
+        if len(case_hits) == 1:
+            return case_hits[0], "case"
+        if len(case_hits) > 1:
+            return None, "ambiguous"
+
         basename = posixpath.basename(raw)
         if "/" not in raw:
             hits = self.basename_index.get(basename, [])
@@ -412,10 +440,22 @@ class Vault:
                 return hits[0], "alias"
             if len(hits) > 1:
                 return None, "ambiguous"
+
+            hits = self.basename_casefold_index.get(basename.casefold(), [])
+            if len(hits) == 1:
+                return hits[0], "case"
+            if len(hits) > 1:
+                return None, "ambiguous"
         else:
             hits = self.basename_index.get(basename, [])
             if len(hits) == 1:
                 return hits[0], "half_path"
+            if len(hits) > 1:
+                return None, "ambiguous"
+
+            hits = self.basename_casefold_index.get(basename.casefold(), [])
+            if len(hits) == 1:
+                return hits[0], "case"
             if len(hits) > 1:
                 return None, "ambiguous"
 
@@ -474,6 +514,15 @@ def check_links(vault: Vault) -> CheckResult:
                 f"文件名重复（全库唯一性）：{basename}：{', '.join(unique)}",
             )
 
+    for key, rels in sorted(vault.basename_casefold_index.items()):
+        unique = sorted(set(rels))
+        exact_names = {posixpath.basename(rel[:-3]) for rel in unique}
+        if len(unique) > 1 and len(exact_names) > 1:
+            result.add_warning(
+                "A6",
+                f"文件名仅大小写不同：{key}：{', '.join(unique)}",
+            )
+
     for rel, info in vault.files.items():
         if under_any(rel, vault.link_exempt):
             continue
@@ -498,6 +547,12 @@ def check_links(vault: Vault) -> CheckResult:
                     result.add_error(
                         "A3",
                         f"半截路径（缺顶层目录）：[[{target}]]",
+                        rel,
+                    )
+                elif kind == "case":
+                    result.add_warning(
+                        "A8",
+                        f"大小写不匹配：[[{target}]] → {resolved}",
                         rel,
                     )
                 if resolved != rel:
@@ -537,6 +592,12 @@ def check_links(vault: Vault) -> CheckResult:
                 result.add_error(
                     "A3",
                     f"半截路径（缺顶层目录）：![[{target}]]",
+                    rel,
+                )
+            elif kind == "case":
+                result.add_warning(
+                    "A8",
+                    f"大小写不匹配：![[{target}]] → {resolved}",
                     rel,
                 )
             if resolved != rel:
@@ -581,6 +642,13 @@ def check_frontmatter(vault: Vault) -> CheckResult:
     form_vocab = set(config.get("form_vocab", []))
     fm_exempt = config.get("frontmatter_exempt_prefixes", [])
     fm_exempt_files = set(config.get("frontmatter_exempt_files", []))
+    expected_subdirs = config.get("expected_subdirs", {})
+    require_evergreen_form = bool(config.get("require_evergreen_form", False))
+    top_dirs = config.get("top_dirs", {})
+    if not isinstance(top_dirs, dict):
+        top_dirs = {}
+    archive_dir = str(top_dirs.get("archive", "99 归档"))
+    projects_dir = str(top_dirs.get("projects", "05 项目"))
 
     for rel, message in vault.read_errors:
         result.add_error("B0", f"无法按 UTF-8 读取：{message}", rel)
@@ -613,9 +681,11 @@ def check_frontmatter(vault: Vault) -> CheckResult:
         if not status_ok:
             result.add_error("B3", f"非法 status：{status_str!r}", rel)
 
+        status_compatible = True
         if type_ok and status_ok:
             allowed = status_by_type.get(typ_str)
             if allowed is not None and status_str not in allowed:
+                status_compatible = False
                 result.add_error(
                     "B2",
                     f"status {status_str!r} 与 type {typ_str!r} 不兼容",
@@ -640,6 +710,75 @@ def check_frontmatter(vault: Vault) -> CheckResult:
             result.add_error(
                 "B5",
                 f"type {typ_str!r} 不应出现在 {directory!r}",
+                rel,
+            )
+
+        layout = (
+            expected_subdirs.get(directory)
+            if isinstance(expected_subdirs, dict)
+            else None
+        )
+        if isinstance(layout, dict):
+            field = str(layout.get("field", ""))
+            mapping = layout.get("map", {})
+            value = fm.get(field, "")
+            if (
+                isinstance(value, str)
+                and value
+                and isinstance(mapping, dict)
+                and value in mapping
+            ):
+                expected_sub = str(mapping[value])
+                if not rel.startswith(f"{directory}/{expected_sub}/"):
+                    result.add_warning(
+                        "B11",
+                        f"{field} {value!r} 应放在 {expected_sub!r} 子目录",
+                        rel,
+                    )
+
+        if require_evergreen_form and typ_str == "evergreen" and is_empty(
+            fm.get("form")
+        ):
+            result.add_warning("B12", "evergreen 缺少 form", rel)
+
+        if typ_str == "project":
+            parts = rel.split("/")
+            if (
+                len(parts) != 4
+                or parts[0] != projects_dir
+                or not re.fullmatch(r"\d{4}", parts[1])
+                or not parts[2].startswith(parts[1] + "-")
+                or parts[3] != f"{parts[2]}-项目主页.md"
+            ):
+                result.add_warning(
+                    "B13",
+                    f"项目主页应为 {projects_dir}/<年份>/<年份-项目名>/<年份-项目名>-项目主页.md",
+                    rel,
+                )
+        elif typ_str == "project_doc":
+            parts = rel.split("/")
+            if (
+                len(parts) != 4
+                or parts[0] != projects_dir
+                or not re.fullmatch(r"\d{4}", parts[1])
+                or not parts[2].startswith(parts[1] + "-")
+                or not parts[3].startswith(parts[2] + "-")
+            ):
+                result.add_warning(
+                    "B13",
+                    "项目文档应位于项目目录内，并以 <年份-项目名>- 开头",
+                    rel,
+                )
+
+        if (
+            status_ok
+            and status_compatible
+            and status_str == "已归档"
+            and not is_under(rel, archive_dir)
+        ):
+            result.add_warning(
+                "B14",
+                f"status 已归档 但文件不在 {archive_dir!r}",
                 rel,
             )
 
@@ -681,6 +820,20 @@ def check_frontmatter(vault: Vault) -> CheckResult:
             result.add_warning(
                 "B9",
                 f"别名 {alias!r} 被多个文件使用：{', '.join(unique)}",
+            )
+
+    for alias, rels in sorted(vault.alias_only_index.items()):
+        alias_rels = sorted(set(rels))
+        base_rels = [
+            rel
+            for rel in sorted(set(vault.basename_index.get(alias, [])))
+            if rel not in alias_rels
+        ]
+        if base_rels:
+            result.add_warning(
+                "B15",
+                f"别名与文件名冲突：{alias!r} 是 {', '.join(alias_rels)} 的别名，"
+                f"也是 {', '.join(base_rels)} 的文件名；链接会优先解析文件名",
             )
 
     return result
@@ -759,6 +912,21 @@ def check_flow(vault: Vault) -> CheckResult:
         if rel not in topic_cites_ever:
             result.add_warning("D2", "03 主题笔记未引用任何 04 常青卡", rel)
 
+    if bool(vault.config.get("require_project_review_on_complete", False)):
+        for rel, typ in sorted(type_of.items()):
+            if typ != "project" or under_any(rel, inactive):
+                continue
+            info = vault.files[rel]
+            if info.fm.get("status") != "已完成":
+                continue
+            has_review = any(
+                type_of.get(target) == "review" for target in info.outlinks
+            )
+            if not has_review:
+                result.add_warning(
+                    "C3", "项目已完成但没有复盘（review）链接", rel
+                )
+
     vault.config["_flow_stats"] = {
         "reading": len(reading),
         "topic": len(topics),
@@ -770,24 +938,43 @@ def check_flow(vault: Vault) -> CheckResult:
     return result
 
 
+def is_demo_note(info: FileInfo, config: Dict[str, object]) -> bool:
+    tags = info.fm.get("tags", [])
+    if isinstance(tags, str):
+        tags = [tags] if tags else []
+    exempt_tags = set(config.get("stale_exempt_tags", []))
+    if isinstance(tags, list) and any(tag in exempt_tags for tag in tags):
+        return True
+    marker = str(config.get("demo_marker", ""))
+    return bool(marker and marker in info.body)
+
+
 def check_stale(vault: Vault) -> CheckResult:
     result = CheckResult("E", "陈旧与复习")
     config = vault.config
     inactive = config.get("inactive_prefixes", [])
     stale_days = int(config.get("stale_days", 90))
-    stale_exempt_tags = set(config.get("stale_exempt_tags", []))
+    project_days = int(config.get("project_stale_days", 30))
+    inbox_days = int(config.get("inbox_stale_days", 14))
+    inbox_dir = str(config.get("inbox_daily_dir", "01 收件箱/A 临时想法"))
 
     stale: List[Tuple[int, str]] = []
+    project_stale: List[Tuple[int, str]] = []
     for rel, info in vault.files.items():
         if top_dir(rel) == "" or under_any(rel, inactive):
             continue
         if info.fm.get("type") == "index":
             continue
-        tags = info.fm.get("tags", [])
-        if isinstance(tags, str):
-            tags = [tags] if tags else []
-        if isinstance(tags, list) and any(tag in stale_exempt_tags for tag in tags):
+        if is_demo_note(info, config):
             continue
+        if (
+            info.fm.get("type") == "project"
+            and info.fm.get("status") == "进行中"
+        ):
+            age = days_since(info.fm.get("updated"))
+            if age is not None and age > project_days:
+                project_stale.append((age, rel))
+                continue
         age = days_since(info.fm.get("updated"))
         if age is not None and age > stale_days:
             stale.append((age, rel))
@@ -801,10 +988,22 @@ def check_stale(vault: Vault) -> CheckResult:
             f"{len(stale)} 篇超过 {stale_days} 天未更新：{preview}{suffix}",
         )
 
+    if project_stale:
+        project_stale.sort(reverse=True)
+        preview = ", ".join(f"{rel}（{age} 天）" for age, rel in project_stale[:5])
+        suffix = f" 等 {len(project_stale)} 个" if len(project_stale) > 5 else ""
+        result.add_warning(
+            "E3",
+            f"{len(project_stale)} 个进行中项目主页超过 {project_days} 天未更新"
+            f"（文档新鲜度；请用 git/交付物核实，不代表项目停滞）：{preview}{suffix}",
+        )
+
     review = [
         rel
         for rel, info in vault.files.items()
-        if info.fm.get("status") == "需复习" and not under_any(rel, inactive)
+        if info.fm.get("status") == "需复习"
+        and not under_any(rel, inactive)
+        and not is_demo_note(info, config)
     ]
     overdue = []
     for rel in review:
@@ -819,6 +1018,32 @@ def check_stale(vault: Vault) -> CheckResult:
         result.add_warning(
             "E2",
             f"{len(overdue)} 篇需复习笔记的证据已超过 {stale_days} 天：{preview}{suffix}",
+        )
+
+    inbox_stale: List[Tuple[int, str]] = []
+    for rel, info in vault.files.items():
+        if not is_under(rel, inbox_dir):
+            continue
+        stem = posixpath.basename(rel[:-3])
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", stem):
+            continue
+        try:
+            created = _dt.date.fromisoformat(stem)
+        except ValueError:
+            continue
+        age = (_dt.date.today() - created).days
+        if age <= inbox_days or is_demo_note(info, config):
+            continue
+        inbox_stale.append((age, rel))
+
+    if inbox_stale:
+        inbox_stale.sort(reverse=True)
+        preview = ", ".join(f"{rel}（{age} 天）" for age, rel in inbox_stale[:5])
+        suffix = f" 等 {len(inbox_stale)} 条" if len(inbox_stale) > 5 else ""
+        result.add_warning(
+            "E4",
+            f"{len(inbox_stale)} 条收件箱捕获超过 {inbox_days} 天未处理："
+            f"{preview}{suffix}",
         )
 
     return result
@@ -922,7 +1147,9 @@ def run_audit(root: Path, config: Dict[str, object]) -> AuditReport:
     return AuditReport(root=str(root), checks=checks, stats=stats)
 
 
-def print_report(report: AuditReport) -> None:
+def print_report(
+    report: AuditReport, summary: bool = False, max_issues: int = 0
+) -> None:
     print(f"知识库审计 · {report.root}")
     print("=" * 72)
     notes = report.stats.get("notes", 0)
@@ -937,15 +1164,41 @@ def print_report(report: AuditReport) -> None:
             f"04 {flow.get('evergreen', 0)}"
         )
     print("-" * 72)
+
+    total_issues = report.errors + report.warnings
+    printed = 0
     for check in report.checks:
         status = {"pass": "PASS", "warn": "WARN", "fail": "FAIL"}[check.status]
         print(
             f"{check.id} {check.name:<10} {status:<5} "
             f"{len(check.errors)} errors, {len(check.warnings)} warnings"
         )
-        for issue in check.errors + check.warnings:
+        issues = check.errors + check.warnings
+        if summary:
+            groups: Dict[str, List[Issue]] = {}
+            for issue in issues:
+                groups.setdefault(issue.code, []).append(issue)
+            for code, grouped in sorted(groups.items()):
+                print(f"  [{code}] {len(grouped)} 条")
+                for issue in grouped[:3]:
+                    location = f"  → {issue.path}" if issue.path else ""
+                    print(f"    {issue.message}{location}")
+                if len(grouped) > 3:
+                    print("    ...")
+            continue
+        for issue in issues:
+            if max_issues and printed >= max_issues:
+                continue
             location = f"  → {issue.path}" if issue.path else ""
             print(f"  [{issue.code}] {issue.message}{location}")
+            printed += 1
+
+    if not summary and max_issues and total_issues > max_issues:
+        print(
+            f"  ... 还有 {total_issues - max_issues} 条未显示；"
+            "用 --summary 看汇总，或 --json 看全量。"
+        )
+
     print("-" * 72)
     status = {"pass": "PASS", "warn": "WARN", "fail": "FAIL"}[report.status]
     print(f"结果：{status}（{report.errors} errors, {report.warnings} warnings）")
@@ -956,6 +1209,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--config", help="配置文件路径，默认 tools/kb_config.json")
     parser.add_argument("--root", help="知识库根目录，默认由配置的 vault_root 解析")
     parser.add_argument("--json", action="store_true", help="输出 JSON")
+    parser.add_argument("--summary", action="store_true", help="按错误码汇总，不逐条打印")
+    parser.add_argument(
+        "--max-issues",
+        type=int,
+        default=0,
+        help="最多打印多少条明细；0 表示全部",
+    )
     parser.add_argument("--strict", action="store_true", help="WARN 也返回非零退出码")
     args = parser.parse_args(argv)
 
@@ -978,7 +1238,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.json:
         print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
     else:
-        print_report(report)
+        print_report(
+            report,
+            summary=args.summary,
+            max_issues=max(0, args.max_issues),
+        )
 
     if report.errors:
         return 1

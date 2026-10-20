@@ -4,11 +4,11 @@
 
 用法：
     python3 tools/kb_new.py daily
-    python3 tools/kb_new.py inbox --title "一个想法"
     python3 tools/kb_new.py reading --title "某篇文章" --source-type 文章
     python3 tools/kb_new.py topic --title "某个主题" --area 工作
     python3 tools/kb_new.py evergreen --title "某个判断" --form 判断
     python3 tools/kb_new.py project --title "周报改造"
+    python3 tools/kb_new.py review --title "某项目复盘"
     python3 tools/kb_new.py weekly
 """
 
@@ -30,13 +30,22 @@ VERSION = "0.1.0"
 
 KIND_TO_TEMPLATE = {
     "daily": "_模板_临时想法.md",
-    "inbox": "_模板_临时想法.md",
     "reading": "_模板_阅读笔记.md",
     "topic": "_模板_主题笔记.md",
     "evergreen": "_模板_常青卡.md",
     "project": "_模板_项目主页.md",
     "review": "_模板_复盘.md",
     "weekly": "_模板_每周回顾.md",
+}
+
+KIND_TO_TYPE = {
+    "daily": "inbox",
+    "reading": "reading",
+    "topic": "topic",
+    "evergreen": "evergreen",
+    "project": "project",
+    "review": "review",
+    "weekly": "review",
 }
 
 FORM_DIRS = {
@@ -64,7 +73,15 @@ SOURCE_DIRS = {
     "网页": "D 其他",
 }
 
-INVALID_FILENAME_CHARS = re.compile(r'[\\/:*?"<>|#^\[\]]')
+INVALID_FILENAME_CHARS = re.compile(r'[\\/:*?"<>|#^\[\]\x00-\x1f\x7f]')
+WINDOWS_RESERVED = {
+    "CON",
+    "PRN",
+    "AUX",
+    "NUL",
+    *(f"COM{i}" for i in range(1, 10)),
+    *(f"LPT{i}" for i in range(1, 10)),
+}
 
 
 class NewNoteError(Exception):
@@ -72,12 +89,17 @@ class NewNoteError(Exception):
 
 
 def sanitize_filename(value: str) -> str:
-    value = INVALID_FILENAME_CHARS.sub("-", value.strip())
+    value = re.sub(r"(?:\.md)+$", "", value.strip(), flags=re.I)
+    value = INVALID_FILENAME_CHARS.sub("-", value)
     value = re.sub(r"\s+", " ", value).strip(" .-")
     if not value:
         raise NewNoteError("标题清洗后为空，请换一个标题。")
     if len(value) > 80:
         value = value[:80].rstrip(" .-")
+    if value.upper() in WINDOWS_RESERVED:
+        raise NewNoteError(
+            f"标题 {value!r} 是 Windows 保留名，请换一个标题。"
+        )
     return value
 
 
@@ -89,6 +111,7 @@ def find_name_conflicts(
     vault = Vault(root, config)
     target = rel.as_posix()
     conflicts = set(vault.basename_index.get(stem, []))
+    conflicts.update(vault.basename_casefold_index.get(stem.casefold(), []))
     conflicts.update(vault.alias_index.get(stem, []))
     conflicts.discard(target)
     return sorted(conflicts)
@@ -139,8 +162,6 @@ def destination(
     if kind == "daily":
         target_filename = f"{date.isoformat()}.md"
         rel = Path("01 收件箱") / "A 临时想法" / target_filename
-    elif kind == "inbox":
-        rel = Path("01 收件箱") / "D 待整理" / target_filename
     elif kind == "reading":
         sub = SOURCE_DIRS.get(source_type, "B 文章")
         rel = Path("02 阅读笔记") / sub / target_filename
@@ -175,6 +196,54 @@ def destination(
         rel = override / target_filename
 
     return rel, template_title
+
+
+def validate_target_dir(
+    root: Path, config: Dict[str, object], rel: Path, kind: str
+) -> None:
+    """拒绝会制造结构脏数据的 --dir / 默认路径。"""
+    if not rel.parts:
+        raise NewNoteError("目标路径为空。")
+
+    parts = rel.parts
+    skip_dirs = {str(item) for item in config.get("skip_dirs", [])}
+    if any(part in skip_dirs or part.startswith(".") for part in parts[:-1]):
+        raise NewNoteError("目标目录在跳过目录/隐藏目录内，拒绝写入。")
+
+    top = parts[0]
+    note_type = KIND_TO_TYPE.get(kind, "")
+    if top == "01 收件箱":
+        if note_type != "inbox":
+            raise NewNoteError("01 收件箱只允许创建 inbox 类型笔记。")
+    elif top == "99 归档":
+        raise NewNoteError("请先用 kb_new 创建活跃笔记，再按归档流程移入 99 归档。")
+    else:
+        expected = config.get("expected_types_by_dir", {})
+        allowed = expected.get(top) if isinstance(expected, dict) else None
+        if allowed is None:
+            raise NewNoteError(f"--dir 的顶层目录 {top!r} 不受支持。")
+        if note_type not in allowed:
+            raise NewNoteError(
+                f"{top!r} 不允许 type {note_type!r}；允许：{', '.join(allowed)}"
+            )
+
+    if kind == "project":
+        if (
+            len(parts) != 4
+            or parts[0] != "05 项目"
+            or not re.fullmatch(r"\d{4}", parts[1])
+            or not parts[2].startswith(parts[1] + "-")
+            or parts[3] != f"{parts[2]}-项目主页.md"
+        ):
+            raise NewNoteError(
+                "项目路径必须是 05 项目/<年份>/<年份-项目名>/<年份-项目名>-项目主页.md"
+            )
+
+    target = (root / rel).resolve()
+    try:
+        target.relative_to(root.resolve())
+    except ValueError as error:
+        raise NewNoteError("目标路径解析后越出知识库根目录。") from error
 
 
 def set_field(text: str, field: str, value: str) -> str:
@@ -257,7 +326,6 @@ def render_template(
 def next_step(kind: str) -> str:
     return {
         "daily": "一句话就够。记得本周回看一次。",
-        "inbox": "一句话就够；本周回顾时判断它是丢掉、展开还是归位。",
         "reading": "读完把 status 改为 已沉淀；在 00 索引/笔记索引.md 加一行。",
         "topic": "补因果链与证据锚点，完成后改 已提炼；在笔记索引加一行。",
         "evergreen": "确认判断成立后改 已沉淀 并填 endorsed；在笔记索引加一行。",
@@ -329,6 +397,7 @@ def run(args: argparse.Namespace) -> int:
         form,
         args.dir,
     )
+    validate_target_dir(root, config, rel, kind)
     target = root / rel
 
     exists = target.exists()
