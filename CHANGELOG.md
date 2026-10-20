@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Docs
+
+- 增加真实 Obsidian 截图：工作台、常青卡、`--strict` 审计输出。
+- README 明确“只用 Obsidian 也能用”，降低非技术用户的上手顾虑。
+
 ## [0.1.1] - 2026-10-20
 
 ### Safety
