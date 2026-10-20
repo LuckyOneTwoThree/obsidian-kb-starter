@@ -111,7 +111,8 @@
     "CHANGELOG.md",
     "CONTRIBUTING.md",
     "SECURITY.md",
-    "CODE_OF_CONDUCT.md"
+    "CODE_OF_CONDUCT.md",
+    "CLAUDE.md"
   ],
   "link_exempt_prefixes": [
     "07 资料库/D 模板",

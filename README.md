@@ -162,7 +162,7 @@ python3 tools/kb_clean_demo.py --apply    # 删除并清理索引，先自动备
 
 ## 用 AI 协作
 
-把 `AGENTS.md` 放在库根。Claude Code、Codex、Cursor、Qoder 等支持 `AGENTS.md` 的工具会先读它；其他工具可以把文件内容贴进会话。
+把 `AGENTS.md` 放在库根。支持 `AGENTS.md` 的工具（如 Codex / Qoder）会先读它；Claude Code 会自动读 [CLAUDE.md](CLAUDE.md)，后者指向 `AGENTS.md`；其他工具可以把文件内容贴进会话。
 
 AI 可以：整理收件箱、起草阅读/主题/常青笔记、补链接、跑审计、解释 WARN。
 

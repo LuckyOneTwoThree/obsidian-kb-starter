@@ -45,7 +45,7 @@ updated: 2026-10-20
 非豁免笔记必须有 `type`、`status`、`created`、`updated`；02/03/04/项目主页还必须有 `source_type`。
 
 - 取值只能来自 [[受控词表]]。
-- 仓库级文件 `README.md` / `CHANGELOG.md` / `CONTRIBUTING.md` / `SECURITY.md` / `CODE_OF_CONDUCT.md` 豁免 frontmatter；它们不是知识库笔记。
+- 仓库级文件 `README.md` / `CHANGELOG.md` / `CONTRIBUTING.md` / `SECURITY.md` / `CODE_OF_CONDUCT.md` / `CLAUDE.md` 豁免 frontmatter；它们不是知识库笔记。
 - 模板里的 `status` 是**实例初始状态**，不要改成 `active`。
 - `需复习` 必须带 `evidence_as_of`。
 - `endorsed` 只由作者填写。

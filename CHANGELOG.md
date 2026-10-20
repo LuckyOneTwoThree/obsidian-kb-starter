@@ -12,7 +12,7 @@
 - `tools/kb_audit.py`：链接、frontmatter、可达性、消化链路、陈旧度、占位与空笔记检查。
 - `tools/kb_new.py`：从模板创建笔记，支持全库重名检查、覆盖备份、日期/时间占位符。
 - `tools/kb_clean_demo.py`：默认 dry-run 的示例清理工具，写入前自动备份。
-- `AGENTS.md`：给 AI 助手的约 140 行协作契约。
+- `AGENTS.md`：给 AI 助手的约 140 行协作契约；`CLAUDE.md` 作为 Claude Code 的入口指针。
 - 53 个单元/集成测试，覆盖链接解析、审计误报、模板渲染、重名检查、示例清理。
 - 一条虚构的「远程团队协作」完整示例链路。
 
