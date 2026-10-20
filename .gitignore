@@ -1,0 +1,47 @@
+# Obsidian 本地状态，不跨设备同步
+# 保留：app.json / daily-notes.json / templates.json / core-plugins.json / community-plugins.json
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/workspaces.json
+.obsidian/hotkeys.json
+.obsidian/graph.json
+.obsidian/appearance.json
+.obsidian/page-preview.json
+.obsidian/cache/
+.obsidian/plugins/
+.obsidian/themes/
+.obsidian/snippets/
+.trash/
+
+# AI 协作产生的本地备份/日志（starter 本身不使用）
+.workbuddy/
+
+# 系统与编辑器噪音
+.DS_Store
+Thumbs.db
+debug.log
+*.tmp
+*.swp
+*~
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+.coverage
+htmlcov/
+
+# 个人归档/备份，按需保留
+.backup/
+
+# 敏感文件
+.env
+.env.*
+*.pem

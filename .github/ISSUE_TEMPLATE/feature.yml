@@ -1,0 +1,36 @@
+name: Feature / 模板建议
+description: 提出新功能、新检查或结构变更
+title: "[feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        这个项目的设计原则是**结构追着痛点走**。请先写清真实痛点，再写方案。
+  - type: textarea
+    id: pain
+    attributes:
+      label: 真实痛点
+      description: 现在具体卡在哪一步？不要写“感觉不够完整”
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建议改动
+      description: 目录、字段、查询、脚本或文档
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: 对捕获与判断的影响
+      description: 会让哪一步更轻，或更重？
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 替代方案 / 为什么现在不做
+    validations:
+      required: false

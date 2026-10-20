@@ -1,0 +1,44 @@
+name: Bug / 审计误报
+description: 报告脚本错误、审计误报或模板结构问题
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请尽量提供**最小复现**。不要贴个人笔记原文；用虚构文件名和 frontmatter 即可。
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 发生了什么
+      description: 实际输出、报错或行为
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 你期望发生什么
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: 复现命令
+      placeholder: python3 tools/kb_audit.py
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: 环境
+      description: 操作系统 / Python 版本 / Obsidian 版本
+      placeholder: macOS 15 / Python 3.12 / Obsidian 1.14
+    validations:
+      required: true
+  - type: textarea
+    id: fixture
+    attributes:
+      label: 最小复现
+      description: 相关文件名、frontmatter、链接写法；不要贴私人内容
+    validations:
+      required: false

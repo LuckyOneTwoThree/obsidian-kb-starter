@@ -1,0 +1,284 @@
+{
+  "vault_root": "..",
+  "index_dir": "00 索引",
+  "top_dirs": {
+    "index": "00 索引",
+    "inbox": "01 收件箱",
+    "reading": "02 阅读笔记",
+    "topic": "03 主题笔记",
+    "evergreen": "04 常青笔记",
+    "projects": "05 项目",
+    "resources": "07 资料库",
+    "archive": "99 归档"
+  },
+  "templates_dir": "07 资料库/D 模板",
+  "skip_dirs": [
+    ".git",
+    ".obsidian",
+    ".trash",
+    ".workbuddy",
+    ".venv",
+    "venv",
+    ".idea",
+    ".vscode",
+    "dist",
+    "build",
+    "tools",
+    "node_modules",
+    "__pycache__",
+    ".backup"
+  ],
+  "type_vocab": [
+    "index",
+    "inbox",
+    "reading",
+    "topic",
+    "evergreen",
+    "project",
+    "project_doc",
+    "review",
+    "writing",
+    "area",
+    "area-goal",
+    "reference",
+    "resource",
+    "task",
+    "log",
+    "template"
+  ],
+  "status_vocab": [
+    "active",
+    "待阅读",
+    "待整理",
+    "待提炼",
+    "已提炼",
+    "已沉淀",
+    "需复习",
+    "进行中",
+    "待启动",
+    "暂停",
+    "已完成",
+    "草稿",
+    "已发布",
+    "已归档"
+  ],
+  "source_type_vocab": [
+    "原创随笔",
+    "原创方法论",
+    "原文精读",
+    "阅读笔记",
+    "文章",
+    "书籍",
+    "课程",
+    "播客",
+    "视频",
+    "论文",
+    "网页",
+    "对话",
+    "手动采集",
+    "自动化采集",
+    "GitHub 仓库"
+  ],
+  "form_vocab": [
+    "概念",
+    "原则",
+    "模型",
+    "方法",
+    "判断",
+    "金句"
+  ],
+  "required_fields": [
+    "type",
+    "status",
+    "created",
+    "updated"
+  ],
+  "date_fields": [
+    "created",
+    "updated",
+    "evidence_as_of",
+    "endorsed",
+    "start_date",
+    "end_date"
+  ],
+  "frontmatter_exempt_prefixes": [
+    "01 收件箱",
+    "07 资料库/D 模板",
+    "99 归档"
+  ],
+  "frontmatter_exempt_files": [
+    "README.md",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "CODE_OF_CONDUCT.md"
+  ],
+  "link_exempt_prefixes": [
+    "07 资料库/D 模板",
+    "99 归档"
+  ],
+  "inactive_prefixes": [
+    "01 收件箱",
+    "07 资料库",
+    "99 归档"
+  ],
+  "placeholder_exempt_prefixes": [
+    "00 索引",
+    "01 收件箱",
+    "07 资料库/D 模板",
+    "99 归档"
+  ],
+  "empty_exempt_prefixes": [
+    "00 索引",
+    "01 收件箱",
+    "07 资料库/D 模板",
+    "99 归档"
+  ],
+  "source_type_required_types": [
+    "reading",
+    "topic",
+    "evergreen",
+    "project"
+  ],
+  "status_by_type": {
+    "index": [
+      "active"
+    ],
+    "inbox": [
+      "待整理",
+      "待阅读"
+    ],
+    "reading": [
+      "待阅读",
+      "已沉淀",
+      "需复习"
+    ],
+    "topic": [
+      "待提炼",
+      "已提炼",
+      "需复习"
+    ],
+    "evergreen": [
+      "草稿",
+      "已沉淀",
+      "需复习"
+    ],
+    "project": [
+      "待启动",
+      "进行中",
+      "暂停",
+      "已完成",
+      "已归档"
+    ],
+    "project_doc": [
+      "草稿",
+      "进行中",
+      "已完成",
+      "已归档"
+    ],
+    "review": [
+      "草稿",
+      "已完成",
+      "已归档"
+    ],
+    "writing": [
+      "草稿",
+      "已发布"
+    ],
+    "area": [
+      "active",
+      "暂停",
+      "已归档"
+    ],
+    "area-goal": [
+      "草稿",
+      "进行中",
+      "已完成",
+      "暂停"
+    ],
+    "reference": [
+      "active",
+      "已归档"
+    ],
+    "resource": [
+      "active",
+      "已归档"
+    ],
+    "task": [
+      "待启动",
+      "进行中",
+      "已完成",
+      "已归档"
+    ],
+    "log": [
+      "active",
+      "已归档"
+    ],
+    "template": [
+      "active"
+    ]
+  },
+  "expected_types_by_dir": {
+    "00 索引": [
+      "index"
+    ],
+    "02 阅读笔记": [
+      "reading",
+      "index"
+    ],
+    "03 主题笔记": [
+      "topic",
+      "review",
+      "index"
+    ],
+    "04 常青笔记": [
+      "evergreen",
+      "index"
+    ],
+    "05 项目": [
+      "project",
+      "project_doc",
+      "review",
+      "index"
+    ],
+    "07 资料库": [
+      "index",
+      "reference",
+      "resource",
+      "template"
+    ]
+  },
+  "banned_tags": [
+    "收件箱",
+    "阅读笔记",
+    "主题笔记",
+    "常青笔记",
+    "项目",
+    "索引",
+    "待阅读",
+    "待整理",
+    "待提炼",
+    "需复习",
+    "已归档"
+  ],
+  "stale_days": 90,
+  "stale_exempt_tags": [
+    "示例"
+  ],
+  "review_requires_evidence": true,
+  "ignore_line_prefixes": [
+    "❌",
+    "✅",
+    "⚠"
+  ],
+  "placeholder_patterns": [
+    "TODO",
+    "TBD",
+    "FIXME",
+    "待补充",
+    "占位",
+    "\\[填写\\]",
+    "\\{\\{[^}]+\\}\\}"
+  ],
+  "min_body_lines": 4
+}
